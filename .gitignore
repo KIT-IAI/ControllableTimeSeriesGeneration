@@ -1,0 +1,6 @@
+/.idea/*
+/data/
+/results*
+/generative_models/__pycache__/
+*.log
+s
