@@ -1,3 +1,4 @@
+import argparse
 import functools
 
 import matplotlib.pyplot as plt
@@ -9,16 +10,14 @@ from pywatts.callbacks import CSVCallback, LinePlotCallback
 from pywatts.core.computation_mode import ComputationMode
 from pywatts.core.pipeline import Pipeline
 from pywatts.modules import CalendarExtraction, CalendarFeature, Sampler, FunctionModule, SKLearnWrapper, \
-    DriftInformation, StatisticExtraction, StatisticFeature
+    StatisticExtraction, StatisticFeature
 from pywatts.modules.postprocessing.merger import Merger
 from sklearn.preprocessing import StandardScaler
 
-from ablation_study_pipeline import get_reshaping
+from utils import get_reshaping
 from generative_models.INN import INNWrapper, subnet, INN
 
 COND_FEATURES = 4
-
-CONDITIONS = ["CalendarExtraction", "statistics"]
 
 AGGREGATORS = [
     ("first", 0),
@@ -26,18 +25,19 @@ AGGREGATORS = [
     ("median", "median")
 ]
 
-# TODO change position to time stamp
-DRIFTS = [
-    ("Linear", DriftInformation(lambda x: (np.linspace(0, 500, x)), 1000, 16064)),
-    ("Sine", DriftInformation(lambda x: (np.sin(np.linspace(0, 50, x)) * 500 + 500).reshape(-1, 1, 1), 5000, 10000))
-]
+parser = argparse.ArgumentParser()
+parser.add_argument("--data", help="The dataset that should be used", type=str, default="data/bike.csv")
+parser.add_argument("--column", help="The target column in the dataset", type=str, default="cnt")
+parser.add_argument("--index", help="The index column in the dataset", type=str, default="time")
+parser.add_argument("--freq", help="The frequency of the dataset", type=str, default="1h")
+parser.add_argument("--statistic", help="Periodic or increasing change", choices=["increase", "periodic"],
+                    default="periodic")
+parser.add_argument("--horizon", help="The horizon or sample size for the generative model", type=int, default=24)
+parser.add_argument("--split_date", help="The date at which the train and test data are spliited",
+                    type=str, default="2012-12-31")
 
-DATASETS = [
-    ("cnt", "data/bikesharing_hourly.csv", "2012-12-31", "dteday", 24, "1h"),
-]
 
-
-def get_train_pipeline(HORIZON, column, gan, inns, vae, scaler, calendar, stats, path="results"):
+def get_train_pipeline(HORIZON, column, inns, scaler, calendar, stats, path="results"):
     pipeline = Pipeline(path)
     scaled = scaler(x=pipeline[column])
     in_data = FunctionModule(get_reshaping(column))(x=scaled)
@@ -50,13 +50,6 @@ def get_train_pipeline(HORIZON, column, gan, inns, vae, scaler, calendar, stats,
     sampled_cal = Sampler(sample_size=HORIZON)(x=extractor)
     sampled_stats = Sampler(sample_size=HORIZON)(x=stats)
 
-    if vae is not None:
-        # VAE should only run with scaling
-        sampler_vae = Sampler(sample_size=HORIZON)(x=extractor)
-        vae(input_calendar=sampler_vae, input_stats=stats, input_data=target, target=target)
-    if gan is not None:
-        gan(input_cal=sampled_cal, input_stats=sampled_stats, target=target)
-        gan.is_fitted = True
     inn_steps = [
         (inn.name,
          inn(cal_input=sampled_cal, stats_input=sampled_stats, input_data=target,
@@ -68,8 +61,8 @@ def get_train_pipeline(HORIZON, column, gan, inns, vae, scaler, calendar, stats,
 
 # Aim of this pipeline is to generate data with statistics
 
-def create_run_pipelines(column, split_date, data, HORIZON, freq, inns, drift, name=""):
-    inn_wrappers = [INNWrapper(name + f"{500}", inn(5e-4), epochs=500, horizon=HORIZON,
+def create_run_pipelines(column, split_date, data, HORIZON, freq, inns, statistic, name=""):
+    inn_wrappers = [INNWrapper(name + f"{500}", inn(5e-4), epochs=1, horizon=HORIZON,
                                stats_loss=stats_loss)
                     for name, inn, stats_loss in inns]
     scaler = SKLearnWrapper(StandardScaler())
@@ -77,7 +70,7 @@ def create_run_pipelines(column, split_date, data, HORIZON, freq, inns, drift, n
                                          features=[CalendarFeature.hour_sine, CalendarFeature.weekend,
                                                    CalendarFeature.month_sine])
     stats_module = StatisticExtraction(features=[StatisticFeature.mean], dim="horizon")
-    inn_steps, pipeline = get_train_pipeline(HORIZON, column, None, inn_wrappers, None, scaler,
+    inn_steps, pipeline = get_train_pipeline(HORIZON, column, inn_wrappers, scaler,
                                              calendar_module, stats_module)
 
     ##### Run pipeline
@@ -93,8 +86,9 @@ def create_run_pipelines(column, split_date, data, HORIZON, freq, inns, drift, n
         for name, inn_step in inn_steps
     }
     data_vars.update({
-        # TODO use here the drift parameters
-        "statistics": np.cos(np.linspace(-np.pi, 5 * np.pi, 365 * 24 * 3)) * 50 + np.linspace(150, 250, 365 * 24 * 3),
+        "statistics": (["time", "dim0"], np.cos(np.linspace(-np.pi, 5 * np.pi, len(data[column]))) * 50
+                      + np.linspace(150, 250, len(data[column])).reshape((-1,1)) if statistic == "increased" else np.cos(
+            np.linspace(-np.pi, 5 * np.pi, len(data[column]))).reshape((-1,1)) * 50),
         column: (["time"], data[column].values),
 
     })
@@ -144,17 +138,15 @@ def create_run_pipelines(column, split_date, data, HORIZON, freq, inns, drift, n
 
 
 if __name__ == "__main__":
-    for column, path, split_date, date_col, HORIZON, freq in DATASETS:
-        inns = [("inn_bottleneck16_15_0_single_value",
-                 functools.partial(INN, horizon=HORIZON, cond_features=COND_FEATURES, n_layers_cond=15,
-                                   subnet=functools.partial(subnet, bottleneck_size=16)), False)]
+    args = parser.parse_args()
 
-        data = pd.read_csv(path, index_col=date_col, parse_dates=[date_col],
-                           infer_datetime_format=True)
+    inns = [("inn_bottleneck16_15_0_single_value",
+             functools.partial(INN, horizon=args.horizon, cond_features=COND_FEATURES, n_layers_cond=15,
+                               subnet=functools.partial(subnet, bottleneck_size=16)), False)]
 
-        if column == "cnt":
-            data.index = data.index + pd.Series(map(lambda v: pd.Timedelta(f"{v}h"), data['hr'].values))
-            data = data.resample("1h").interpolate()
-        for name, drift in DRIFTS:
-            create_run_pipelines(column, split_date, data, HORIZON, freq, inns, drift=drift, name=name)
-        print("finished")
+    data = pd.read_csv(args.data, index_col=args.index, parse_dates=[args.index],
+                       infer_datetime_format=True)
+
+    create_run_pipelines(args.column, args.split_date, data, args.horizon, args.freq, inns, statistic=args.statistic,
+                         name=args.statistic)
+    print("finished")

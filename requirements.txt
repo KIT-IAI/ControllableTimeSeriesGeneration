@@ -1,0 +1,2 @@
+git+https://github.com/KIT-IAI/pyWATTS@e2436a1104dc73793e028f4bf5a4a3004154ecd4
+git+https://github.com/VLL-HD/FrEIA.git@b059127449505f1fb0171a25caa65385bef78660

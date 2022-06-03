@@ -14,20 +14,29 @@ Set up a virtual environment using e.g. venv (`python -m venv venv`) or Anaconda
 
 ### 2. Download Data (optional)
 
-If you do not have any data available, you can download exemplary data by executing `python download.py`. This script downloads and unpacks the [ElectricityLoadDiagrams20112014 Data Set](https://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014) from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/) as CSV file.
+If you do not have any data available, you can download exemplary data by executing `python download.py`. 
+This script downloads and unpacks the [ElectricityLoadDiagrams20112014 Data Set](https://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014)  
+and the [Bike Sharing Data Set](https://archive.ics.uci.edu/ml/machine-learning-databases/00275/Bike-Sharing-Dataset.zip) 
+from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/) as CSV files.
 
 
-## Controlling Non-Stationarity and Periodicities 
+## Existing Pipelines
 
-Finally, you can control non-stationarity and periodicities when generating time series in the following way.
+This repository contains the `ablation_study_pipeline.py` for evaluating the influence of the different conditional
+information and loss function.
+
+To control non-stationarity and periodicities when generating time series, this repository also contains the
+`controllable_generation_pipeline.py`
 
 ### Input
 
-To ...
+See in both pipelines for a description of the arguments. If you would like to use your own dataset you might have to
+specify some of these arguments. Moreover, you have to ensure that the index is named `time` and that the delimiter
+of your csv file is `,`
 
 ### Output
 
-After ...
+Both pipelines creates result folders, which contains visualisation and summary files containing the evaluation results.
 
 
 ## Funding

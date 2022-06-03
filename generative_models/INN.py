@@ -28,17 +28,11 @@ class CondNet(nn.Module):
         return self.condition(c)
 
 
-def subnet(ch_in, ch_out):
-    return nn.Sequential(nn.Linear(ch_in, 32),
-                         nn.Tanh(),
-                         # nn.Linear(32,16),
-                         # nn.Tanh(),
-                         # nn.Linear(16, 8),
-                         # nn.Tanh(),
-                         # nn.Linear(8,16),
-                         # nn.Tanh(),
-                         nn.Linear(32, ch_out))
-
+def subnet(ch_in, ch_out, bottleneck_size=32, activation=torch.nn.Tanh):
+    return nn.Sequential(
+        nn.Linear(ch_in, bottleneck_size),
+        activation(),
+        nn.Linear(bottleneck_size, ch_out))
 
 class INN(nn.Module):
     def __init__(self, lr, cond_features, horizon, n_layers_cond=5, n_layers_without_cond=0, subnet=subnet):
@@ -310,15 +304,14 @@ class INNWrapper(BaseEstimator):
         x = input_data.values.reshape((len(input_data), self.horizon))
         c = self._get_conditions(kwargs)
 
-        return numpy_to_xarray(self.cinn.forward(x, c=c)[0].detach().numpy(), input_data, self.name)
+        return numpy_to_xarray(self.cinn.forward(x, c=c)[0].detach().numpy(), input_data)
 
     def inverse_transform(self, input_data: xr.DataArray, **kwargs: xr.DataArray) -> xr.DataArray:
 
         x = input_data.values.reshape((len(input_data), self.horizon))
         x = torch.from_numpy(x.astype("float32"))
         c = self._get_conditions(kwargs)
-        return numpy_to_xarray(self.cinn.reverse_sample(x, c=c).reshape((-1, self.horizon)), input_data,
-                               f"reverse_{self.name}")
+        return numpy_to_xarray(self.cinn.reverse_sample(x, c=c).reshape((-1, self.horizon)), input_data)
 
     def _get_conditions(self, kwargs):
         conditions = []
