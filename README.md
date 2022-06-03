@@ -22,21 +22,17 @@ from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/) as C
 
 ## Existing Pipelines
 
-This repository contains the `ablation_study_pipeline.py` for evaluating the influence of the different conditional
-information and loss function.
+This repository contains the `ablation_study_pipeline.py` for evaluating the influence of the different conditional information and loss function.
 
-To control non-stationarity and periodicities when generating time series, this repository also contains the
-`controllable_generation_pipeline.py`
+To control non-stationarity and periodicities when generating time series, this repository also contains the `controllable_generation_pipeline.py`
 
 ### Input
 
-See in both pipelines for a description of the arguments. If you would like to use your own dataset you might have to
-specify some of these arguments. Moreover, you have to ensure that the index is named `time` and that the delimiter
-of your csv file is `,`
+See both pipelines for a description of the arguments. If you would like to use your own dataset, you might have to specify some of these arguments. Moreover, you have to ensure that the index is named `time` and that the delimiter of your csv file is `,`.
 
 ### Output
 
-Both pipelines creates result folders, which contains visualisation and summary files containing the evaluation results.
+Both pipelines create result folders with visualisation and summary files that contain the evaluation results.
 
 
 ## Funding
